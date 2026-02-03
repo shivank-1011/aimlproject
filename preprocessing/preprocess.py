@@ -26,6 +26,8 @@ def preprocess_data(input_path, output_train_path, output_test_path):
     print(f"Loading data from {input_path}...")
     df = pd.read_csv(input_path)
 
+    display_df = df.copy()
+
     # 1. Drop unnecessary columns
     cols_to_drop = ['id', 'student_name']
     df = df.drop(columns=[c for c in cols_to_drop if c in df.columns])
@@ -49,20 +51,26 @@ def preprocess_data(input_path, output_train_path, output_test_path):
         df = parse_json_column(df, 'time_spent_per_topic', 'Time')
 
     # 4. Handle invalid values and outliers
-    
-    # Coerce all potential numeric columns
+    # Coerce numeric columns
     numeric_candidates = [c for c in df.columns if c != 'Section']
     for col in numeric_candidates:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     
-    # Replace negative subject scores with NaN
+    # Replace negative scores with NaN
     subject_cols = ['Maths', 'SESD', 'AIML', 'FSD', 'DVA']
     for col in subject_cols:
         if col in df.columns:
             df.loc[df[col] < 0, col] = np.nan
+    
+    # Generate Synthetic Target 'PlacementStatus' (1 if avg > 75, else 0)
+    temp_subjects = df[subject_cols].fillna(0)
+    df['PlacementStatus'] = (temp_subjects.mean(axis=1) > 75).astype(int)
+    print(f"Target distribution:\n{df['PlacementStatus'].value_counts()}")
 
     # Apply IQR Capping (Winsorization)
     numeric_cols = df.select_dtypes(include=[np.number]).columns
+    numeric_cols = [c for c in numeric_cols if c != 'PlacementStatus']
+    
     for col in numeric_cols:
         Q1 = df[col].quantile(0.25)
         Q3 = df[col].quantile(0.75)
@@ -71,30 +79,37 @@ def preprocess_data(input_path, output_train_path, output_test_path):
         df[col] = df[col].clip(lower=lower, upper=upper)
 
     # 5. Impute missing values with mean
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
     for col in numeric_cols:
         df[col] = df[col].fillna(df[col].mean())
     df = df.fillna(0)
 
-    # 6. One-hot encode 'Section' column
+    # 6. One-hot encode 'Section'
     df = pd.get_dummies(df, columns=['Section'], prefix='Section', drop_first=False)
     for col in df.columns:
         if df[col].dtype == 'bool':
             df[col] = df[col].astype(int)
 
-    # 7. Apply Standard Scaling
-    scaler = StandardScaler()
-    scale_cols = df.select_dtypes(include=[np.number]).columns
-    df[scale_cols] = scaler.fit_transform(df[scale_cols])
+    # 7. Split data (before scaling to fix leakage)
+    X = df.drop(columns=['PlacementStatus'])
+    y = df['PlacementStatus']
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # 8. Split data
-    train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
+    # 8. Standard Scaling
+    scaler = StandardScaler()
+    X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns)
+    X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns)
 
     # 9. Save output
+    # Concatenate X and y for saving (or save X and y separately, but typically CSVs have both)
     print(f"Saving train data to {output_train_path}...")
-    train_df.to_csv(output_train_path, index=False)
+    train_out = pd.concat([X_train_scaled, y_train.reset_index(drop=True)], axis=1)
+    train_out.to_csv(output_train_path, index=False)
+    
     print(f"Saving test data to {output_test_path}...")
-    test_df.to_csv(output_test_path, index=False)
+    test_out = pd.concat([X_test_scaled, y_test.reset_index(drop=True)], axis=1)
+    test_out.to_csv(output_test_path, index=False)
+    
     print("Preprocessing complete!")
 
 if __name__ == "__main__":
