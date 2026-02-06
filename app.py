@@ -8,7 +8,7 @@ import os
 import plotly.express as px
 from sklearn.preprocessing import StandardScaler
 
-#config
+# config
 MODEL_PATH = 'model/model.pkl'
 SCALER_PATH = 'model/scaler.pkl'
 PAGE_TITLE = "Student Risk Analysis System"
@@ -45,14 +45,38 @@ def extract_section(urn):
 @st.cache_resource
 def load_resources():
     try:
-        with open(MODEL_PATH, 'rb') as f:
-            model = pickle.load(f)
-        with open(SCALER_PATH, 'rb') as f:
-            scaler = pickle.load(f)
+        model = None
+        scaler = None
+        
+        if os.path.exists(MODEL_PATH):
+            with open(MODEL_PATH, 'rb') as f:
+                model = pickle.load(f)
+        else:
+            st.error(f"Model file not found at {MODEL_PATH}")
+
+        if os.path.exists(SCALER_PATH):
+            with open(SCALER_PATH, 'rb') as f:
+                scaler = pickle.load(f)
+        else:
+            st.error(f"Scaler file not found at {SCALER_PATH}")
+            
         return model, scaler
     except Exception as e:
         st.error(f"Error loading model or scaler: {e}")
         return None, None
+
+def validate_input(df):
+    """Checks for required critical columns."""
+    required_subjects = ['Maths', 'SESD', 'AIML', 'FSD', 'DVA']
+    missing = [col for col in required_subjects if col not in df.columns]
+    
+    if missing:
+         return False, f"Missing critical subject columns: {', '.join(missing)}"
+    
+    if df.empty:
+        return False, "Uploaded file is empty."
+        
+    return True, ""
 
 def preprocess_input(df, scaler):
     """Preprocesses input dataframe for prediction."""
@@ -67,7 +91,6 @@ def preprocess_input(df, scaler):
         processed_df['Section'] = processed_df['URN'].apply(extract_section)
         processed_df = processed_df.drop(columns=['URN'])
     elif 'Section' not in processed_df.columns:
-        # Fallback if no URN and no Section
         processed_df['Section'] = 'Unknown'
 
     # 3. Parse JSON-like columns
@@ -101,6 +124,7 @@ def preprocess_input(df, scaler):
         processed_df[col] = processed_df[col].clip(lower=lower, upper=upper)
 
     # 5. Impute missing values with mean
+    # Note: Ideally this should use training set means, but we follow preprocessing.py logic here
     for col in numeric_cols:
         processed_df[col] = processed_df[col].fillna(processed_df[col].mean())
     processed_df = processed_df.fillna(0) 
@@ -124,6 +148,7 @@ def preprocess_input(df, scaler):
     return pd.DataFrame(scaled_values, columns=processed_df.columns)
 
 def get_recommendations(category):
+    # Synced with model/recommendation.py
     recommendations_map = {
         'At-risk': [
             "Focus on fundamental concepts and weak topics.",
@@ -157,60 +182,83 @@ def main():
 
     if uploaded_file is not None:
         try:
-            raw_df = pd.read_csv(uploaded_file)
+            # Check for empty file
+            if uploaded_file.size == 0:
+                st.error("Uploaded file is empty.")
+                return
+
+            try:
+                raw_df = pd.read_csv(uploaded_file)
+            except pd.errors.ParserError:
+                st.error("Uploaded file is not a valid CSV.")
+                return
+            
             st.subheader("Data Preview")
             st.dataframe(raw_df.head())
 
+            # Validation
+            is_valid, error_msg = validate_input(raw_df)
+            if not is_valid:
+                st.error(f"Validation Error: {error_msg}")
+                return
+
             if st.button("Analyze Students"):
                 with st.spinner("Processing data and generating predictions..."):
-                    X_processed = preprocess_input(raw_df, scaler)
-                    
-                    if hasattr(model, "predict_proba"):
-                        probs = model.predict_proba(X_processed)[:, 1]
-                    else:
-                        probs = model.predict(X_processed)
-                    
-                    categories = []
-                    for p in probs:
-                        if p < 0.40:
-                            categories.append('At-risk')
-                        elif p < 0.80:
-                            categories.append('Average')
+                    try:
+                        X_processed = preprocess_input(raw_df, scaler)
+                        
+                        if hasattr(model, "predict_proba"):
+                            probs = model.predict_proba(X_processed)[:, 1]
                         else:
-                            categories.append('High-performing')
-                    
-                    # Results DataFrame
-                    results_df = raw_df.copy()
-                    results_df['Risk Score'] = np.round(probs, 4)
-                    results_df['Risk Category'] = categories
-                    results_df['Recommendations'] = [get_recommendations(c) for c in categories]
-                    
-                    # DASHBOARD
-                    st.divider()
-                    col1, col2 = st.columns([2, 1])
-                    
-                    with col1:
-                        st.subheader(" Detailed Analysis")
-                        st.dataframe(results_df[['student_name', 'Risk Category', 'Risk Score', 'Recommendations'] if 'student_name' in results_df.columns else ['Risk Category', 'Risk Score', 'Recommendations']])
-                    
-                    with col2:
-                        st.subheader("Risk Distribution")
-                        count_df = results_df['Risk Category'].value_counts().reset_index()
-                        count_df.columns = ['Category', 'Count']
-                        fig = px.pie(count_df, values='Count', names='Category', color='Category',
-                                     color_discrete_map={'At-risk':'red', 'Average':'orange', 'High-performing':'green'})
-                        st.plotly_chart(fig, use_container_width=True)
+                            probs = model.predict(X_processed)
+                        
+                        categories = []
+                        for p in probs:
+                            if p < 0.40:
+                                categories.append('At-risk')
+                            elif p < 0.80:
+                                categories.append('Average')
+                            else:
+                                categories.append('High-performing')
+                        
+                        # Results DataFrame
+                        results_df = raw_df.copy()
+                        results_df['Risk Score'] = np.round(probs, 4)
+                        results_df['Risk Category'] = categories
+                        results_df['Recommendations'] = [get_recommendations(c) for c in categories]
+                        
+                        # DASHBOARD
+                        st.divider()
+                        col1, col2 = st.columns([2, 1])
+                        
+                        with col1:
+                            st.subheader(" Detailed Analysis")
+                            disp_cols = ['Risk Category', 'Risk Score', 'Recommendations']
+                            if 'student_name' in results_df.columns:
+                                disp_cols.insert(0, 'student_name')
+                            st.dataframe(results_df[disp_cols])
+                        
+                        with col2:
+                            st.subheader("Risk Distribution")
+                            count_df = results_df['Risk Category'].value_counts().reset_index()
+                            count_df.columns = ['Category', 'Count']
+                            fig = px.pie(count_df, values='Count', names='Category', color='Category',
+                                         color_discrete_map={'At-risk':'red', 'Average':'orange', 'High-performing':'green'})
+                            st.plotly_chart(fig, use_container_width=True)
 
-                    # Download
-                    csv = results_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="Download Full Report",
-                        data=csv,
-                        file_name="student_risk_report.csv",
-                        mime="text/csv",
-                    )
-                    
-                    st.success("Analysis Complete!")
+                        # Download
+                        csv = results_df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="Download Full Report",
+                            data=csv,
+                            file_name="student_risk_report.csv",
+                            mime="text/csv",
+                        )
+                        
+                        st.success("Analysis Complete!")
+                    except Exception as e:
+                        st.error(f"An error occurred during analysis: {str(e)}")
+                        st.exception(e)
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
