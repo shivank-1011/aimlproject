@@ -98,6 +98,15 @@ def preprocess_data(input_path, output_train_path, output_test_path):
     # 8. Standard Scaling
     scaler = StandardScaler()
     X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns)
+    
+    # Save scaler
+    import pickle
+    scaler_path = 'model/scaler.pkl'
+    os.makedirs(os.path.dirname(scaler_path), exist_ok=True)
+    with open(scaler_path, 'wb') as f:
+        pickle.dump(scaler, f)
+    print(f"Scaler saved to {scaler_path}")
+    
     X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns)
 
     # 9. Save output
