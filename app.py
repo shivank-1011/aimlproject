@@ -9,6 +9,8 @@ import plotly.express as px
 from sklearn.preprocessing import StandardScaler
 from groq_analysis import GroqAnalyzer
 from diagnosis import StudentDiagnosis
+from agent_workflow import StudentAnalysisAgent
+from pdf_generator import generate_study_plan_pdf
 
 # config
 MODEL_PATH = 'model/model.pkl'
@@ -266,7 +268,7 @@ def main():
                     count_df.columns = ['Category', 'Count']
                     fig = px.pie(count_df, values='Count', names='Category', color='Category',
                                     color_discrete_map={'At-risk':'red', 'Average':'orange', 'High-performing':'green'})
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
                 # Download button for CSV
                 csv = results_df.to_csv(index=False).encode('utf-8')
@@ -324,23 +326,39 @@ def main():
 
                     if st.button("Generate AI Diagnosis"):
                         if selected_student:
-                            with st.spinner(f"AI is analyzing {selected_student}'s performance using Groq..."):
+                            with st.spinner(f"Agent is executing workflow for {selected_student}..."):
                                 try:
-                                    analyzer = GroqAnalyzer()
-                                    # The analyzer now internally uses diagnosis.py as well
-                                    report = analyzer.generate_study_plan(perf_dict_raw, current_goal)
+                                    # Initialize and run the LangGraph Agent pipeline
+                                    agent = StudentAnalysisAgent()
+                                    report = agent.run(perf_dict_raw, current_goal)
                                     
                                     st.markdown("---")
                                     st.markdown(report)
                                     
+                                    # DOWNLOAD OPTION 1: MARKDOWN
                                     st.download_button(
-                                        label="Download AI Report (Markdown)",
+                                        label="Download Agent Report (Markdown)",
                                         data=report,
-                                        file_name=f"AI_Report_{selected_student}.md",
+                                        file_name=f"Agent_Report_{selected_student}.md",
                                         mime="text/markdown",
                                     )
+                                    
+                                    # DOWNLOAD OPTION 2: PDF
+                                    try:
+                                        # Ensure report is a string
+                                        pdf_bytes = generate_study_plan_pdf(selected_student, report)
+                                        st.download_button(
+                                            label="Download Study Plan (PDF)",
+                                            data=pdf_bytes,
+                                            file_name=f"StudyPlan_{selected_student}.pdf",
+                                            mime="application/pdf",
+                                        )
+                                    except Exception as pdf_err:
+                                        st.warning(f"Note: PDF generation skipped due to non-standard characters. Download Markdown instead.")
+                                        st.info(f"(Details: {pdf_err})")
+                                        
                                 except Exception as e:
-                                    st.error(f"Groq API Error: {e}")
+                                    st.error(f"Agent Workflow Error: {e}")
                         else:
                             st.warning("Please select a student.")
                 else:

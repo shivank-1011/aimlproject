@@ -7,3 +7,6 @@ groq
 python-dotenv
 faiss-cpu
 sentence-transformers
+langgraph
+fpdf
+torchvision
