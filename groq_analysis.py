@@ -1,6 +1,7 @@
 import os
 from groq import Groq
 from dotenv import load_dotenv
+from diagnosis import StudentDiagnosis
 
 load_dotenv()
 
@@ -11,34 +12,42 @@ class GroqAnalyzer:
             raise ValueError("Groq API Key not found. Please set GROQ_API_KEY in your .env file.")
         
         self.client = Groq(api_key=self.api_key)
+        self.diagnosis_tool = StudentDiagnosis()
 
     def generate_study_plan(self, student_performance, goal):
         """
         Generates a student performance diagnosis and a personalized study plan.
         
         Args:
-            student_performance (dict): A dictionary containing student performance metrics (e.g., subjects and scores).
+            student_performance (dict): A dictionary containing student performance metrics.
             goal (str): The student's academic or career goal.
             
         Returns:
             str: The LLM's response containing diagnosis and study plan.
         """
         
-        system_prompt = """
-        You are an expert academic counselor and tutor. Your task is to analyze student performance data,
-        provide a detailed diagnosis of their strengths and weaknesses, and create a structured, 
-        actionable study plan to help them reach their specific goals.
+        # Identify weak areas using the diagnosis utility
+        weak_areas = self.diagnosis_tool.identify_weak_areas(student_performance)
+        weak_areas_text = self.diagnosis_tool.format_weak_areas_for_prompt(weak_areas)
         
-        Format your response clearly with the following sections:
-        1. **Performance Diagnosis**: A detailed breakdown of where the student stands.
-        2. **Strengths & Weaknesses**: Bullet points highlighting key areas.
-        3. **Personalized Study Plan**: A step-by-step plan (weekly or daily) to achieve their goal.
-        4. **Recommended Resources**: Suggestions for books, courses, or practice tools.
+        system_prompt = """
+        You are an expert academic counselor. Your task is to provide a detailed diagnosis of a student's performance, 
+        specifically focusing on their weak areas, and create a structured study plan to help them reach their goals.
+        
+        Format your response with the following sections:
+        1. **Performance Diagnosis**: A critical analysis of where the student stands.
+        2. **Weak Areas**: Detailed breakdown of subjects with low performance.
+        3. **Strengths**: Acknowledging subjects where the student is excelling.
+        4. **Personalized Study Plan**: An actionable, week-by-week plan to achieve their goal.
+        5. **Recommended Resources**: Targeted resources for their weakest subjects.
         """
         
         user_prompt = f"""
         **Student Performance Data:**
         {student_performance}
+        
+        **Identified Weak Areas:**
+        {weak_areas_text}
         
         **Student Goal:**
         {goal}

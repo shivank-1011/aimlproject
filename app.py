@@ -278,7 +278,7 @@ def main():
 
                 # AI ANALYSIS SECTION
                 st.divider()
-                st.subheader("🤖 AI Study Planner (Powered by Groq)")
+                st.subheader("AI Study Planner (Powered by Groq)")
                 
                 # Filter for priority students (at-risk or average)
                 priority_students = results_df[results_df['Risk Category'].isin(['At-risk', 'Average'])]
@@ -295,20 +295,39 @@ def main():
                     with col_b:
                         current_goal = st.text_input("Goal", "Improve core subjects and prepare for placement rounds.")
                         
+                    # Data-driven identification of weak areas (integrated from diagnosis.py)
+                    diagnostician = StudentDiagnosis()
+                    if selected_student:
+                        if 'student_name' in priority_students.columns:
+                            row = priority_students[priority_students['student_name'] == selected_student].iloc[0]
+                        else:
+                            row = priority_students.loc[selected_student]
+                        
+                        perf_dict_raw = row.to_dict()
+                        diagnosis_data = diagnostician.identify_weak_areas(perf_dict_raw)
+                        
+                        # Show Critical Weak Areas (Red/Warning)
+                        if diagnosis_data["critical"]:
+                            st.error(f"**Critical Weak Areas for {selected_student}:**")
+                            for w in diagnosis_data["critical"]:
+                                st.write(f"- {w['reason']} (Score: {w['score']})")
+                        
+                        # Show Areas for Improvement (Yellow/Info)
+                        if diagnosis_data["improvement"]:
+                            st.warning(f"**Areas for Improvement for {selected_student}:**")
+                            for w in diagnosis_data["improvement"]:
+                                st.write(f"- {w['reason']} (Score: {w['score']})")
+                        
+                        if not diagnosis_data["critical"] and not diagnosis_data["improvement"]:
+                            st.success(f"Excellent performance across all subjects for {selected_student}!")
+
                     if st.button("Generate AI Diagnosis"):
                         if selected_student:
-                            with st.spinner(f"AI is analyzing {selected_student}'s performance..."):
+                            with st.spinner(f"AI is analyzing {selected_student}'s performance using Groq..."):
                                 try:
                                     analyzer = GroqAnalyzer()
-                                    
-                                    # Get student data row
-                                    if 'student_name' in priority_students.columns:
-                                        row = priority_students[priority_students['student_name'] == selected_student].iloc[0]
-                                    else:
-                                        row = priority_students.loc[selected_student]
-                                    
-                                    perf_dict = row.to_dict()
-                                    report = analyzer.generate_study_plan(perf_dict, current_goal)
+                                    # The analyzer now internally uses diagnosis.py as well
+                                    report = analyzer.generate_study_plan(perf_dict_raw, current_goal)
                                     
                                     st.markdown("---")
                                     st.markdown(report)
