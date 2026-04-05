@@ -2,6 +2,7 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 from diagnosis import StudentDiagnosis
+from rag import StudyResourceRAG
 
 load_dotenv()
 
@@ -13,6 +14,7 @@ class GroqAnalyzer:
         
         self.client = Groq(api_key=self.api_key)
         self.diagnosis_tool = StudentDiagnosis()
+        self.rag_tool = StudyResourceRAG()
 
     def generate_study_plan(self, student_performance, goal):
         """
@@ -27,19 +29,34 @@ class GroqAnalyzer:
         """
         
         # Identify weak areas using the diagnosis utility
-        weak_areas = self.diagnosis_tool.identify_weak_areas(student_performance)
-        weak_areas_text = self.diagnosis_tool.format_weak_areas_for_prompt(weak_areas)
+        weak_areas_data = self.diagnosis_tool.identify_weak_areas(student_performance)
+        weak_areas_text = self.diagnosis_tool.format_weak_areas_for_prompt(weak_areas_data)
         
-        system_prompt = """
+        # Retrieve real study resources using RAG
+        all_weak_areas = weak_areas_data["critical"] + weak_areas_data["improvement"]
+        real_resources = self.rag_tool.get_resources_for_diagnosis(all_weak_areas)
+        
+        resources_text = "### Real Recommended Resources (Ground Truth):\n"
+        for sub, rec_list in real_resources.items():
+            resources_text += f"\nFor {sub}:\n"
+            for r in rec_list:
+                resources_text += f"- {r['topic']}: {r['link']}\n"
+        
+        system_prompt = f"""
         You are an expert academic counselor. Your task is to provide a detailed diagnosis of a student's performance, 
         specifically focusing on their weak areas, and create a structured study plan to help them reach their goals.
         
+        I have provided some REAL curated study resources below. You MUST include these specific links in your 
+        'Recommended Resources' section to ensure the student gets accurate, clickable guidance.
+        
+        {resources_text}
+
         Format your response with the following sections:
         1. **Performance Diagnosis**: A critical analysis of where the student stands.
         2. **Weak Areas**: Detailed breakdown of subjects with low performance.
         3. **Strengths**: Acknowledging subjects where the student is excelling.
         4. **Personalized Study Plan**: An actionable, week-by-week plan to achieve their goal.
-        5. **Recommended Resources**: Targeted resources for their weakest subjects.
+        5. **Recommended Resources**: Include the real links provided above, categorized by subject.
         """
         
         user_prompt = f"""

@@ -2,10 +2,11 @@ import pandas as pd
 import numpy as np
 
 class StudentDiagnosis:
-    def __init__(self, critical_threshold=60, improvement_threshold=75):
+    def __init__(self, critical_threshold=60, improvement_threshold=75, subjects=None):
         self.critical_threshold = critical_threshold
         self.improvement_threshold = improvement_threshold
-        self.subjects = ['Maths', 'SESD', 'AIML', 'FSD', 'DVA']
+        # If subjects are not provided, we detect them dynamically in identify_weak_areas
+        self.subjects = subjects
         self.subject_descriptions = {
             'Maths': 'Mathematical reasoning and problem solving',
             'SESD': 'Software Engineering and System Design',
@@ -14,19 +15,32 @@ class StudentDiagnosis:
             'DVA': 'Data Visualization and Analytics'
         }
 
+    def _get_dynamic_subjects(self, student_data):
+        """
+        Dynamically filters subjects from student data.
+        Recognizes numeric columns that look like grades (0-100).
+        """
+        detected = []
+        exclude_keywords = ['id', 'score', 'status', 'prob', 'total', 'attendance', 'name', 'urn', 'section']
+        
+        for key, value in student_data.items():
+            # Check if key is not in excluded names
+            if any(word in key.lower() for word in exclude_keywords):
+                continue
+                
+            try:
+                # Check if the value is a number between 0 and 100
+                score = float(value)
+                if 0 <= score <= 100:
+                    detected.append(key)
+            except (ValueError, TypeError):
+                continue
+        
+        return detected
+
     def identify_weak_areas(self, student_data):
         """
-        Identifies critical and improvement areas based on scores.
-        
-        Args:
-            student_data (dict): Dictionary with subject names as keys and scores as values.
-            
-        Returns:
-            dict: {
-                "critical": list of dicts for scores < critical_threshold,
-                "improvement": list of dicts for scores between thresholds,
-                "strengths": list of dicts for scores > improvement_threshold
-            }
+        Identifies critical and improvement areas based on real data scores.
         """
         diagnosis = {
             "critical": [],
@@ -34,15 +48,18 @@ class StudentDiagnosis:
             "strengths": []
         }
         
+        # Use provided subjects or detect them dynamically
+        subjects_to_check = self.subjects if self.subjects else self._get_dynamic_subjects(student_data)
+        
         scores_list = []
-        for sub in self.subjects:
+        for sub in subjects_to_check:
             if sub in student_data:
                 try:
                     score = float(student_data[sub])
                     entry = {
                         "subject": sub,
                         "score": score,
-                        "description": self.subject_descriptions.get(sub, "")
+                        "description": self.subject_descriptions.get(sub, f"Study material for {sub}")
                     }
                     scores_list.append(entry)
                     
@@ -58,16 +75,16 @@ class StudentDiagnosis:
                 except (ValueError, TypeError):
                     continue
         
-        # If no critical or improvement areas, but still have subjects, 
-        # mark at least the lowest score as an improvement area if it's not a strength
+        # If no critical or improvement areas, but still have subjects, identify the relative weakest
         if not diagnosis["critical"] and not diagnosis["improvement"] and scores_list:
             scores_list.sort(key=lambda x: x['score'])
             lowest = scores_list[0]
-            if lowest["score"] < 85: # Even if it's above 75, we can highlight the lowest if it's below an 'A' grade
+            # If the lowest is still less than an 85, flag it for excellence
+            if lowest["score"] < 85:
                 lowest["reason"] = f"{lowest['subject']}: Lowest scoring area (Opportunity for excellence)"
                 diagnosis["improvement"].append(lowest)
 
-        # Sort within each list
+        # Sort results
         for key in diagnosis:
             diagnosis[key].sort(key=lambda x: x['score'])
             
@@ -88,13 +105,20 @@ class StudentDiagnosis:
                 prompt_lines.append(f"- {area['reason']} (Score: {area['score']})")
                 
         if not prompt_lines:
-            return "General academic excellence detected across all core subjects."
+            return "General academic excellence detected across all subjects."
         
         return "\n".join(prompt_lines)
 
 if __name__ == "__main__":
-    # Test logic
+    # Test dynamic detection
     tester = StudentDiagnosis()
-    sample = {'Maths': 68, 'SESD': 82, 'AIML': 90, 'FSD': 70, 'DVA': 88}
+    sample = {
+        'Advanced_Calculus': 45, 
+        'Python_Programming': 82, 
+        'student_name': 'Rohan',
+        'attendance_percentage': 95,
+        'Database_Mgmt': 58
+    }
     diag = tester.identify_weak_areas(sample)
+    print("--- Dynamic Diagnosis Test ---")
     print(tester.format_weak_areas_for_prompt(diag))

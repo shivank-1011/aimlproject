@@ -8,6 +8,7 @@ import os
 import plotly.express as px
 from sklearn.preprocessing import StandardScaler
 from groq_analysis import GroqAnalyzer
+from diagnosis import StudentDiagnosis
 
 # config
 MODEL_PATH = 'model/model.pkl'

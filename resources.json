@@ -1,0 +1,14 @@
+[
+  {"topic": "Calculus and Linear Algebra for Engineering", "link": "https://www.khanacademy.org/math/multivariable-calculus", "subject": "Maths"},
+  {"topic": "Foundations of Software Engineering", "link": "https://ocw.mit.edu/courses/6-031-software-construction-spring-2016/", "subject": "SESD"},
+  {"topic": "System Design Fundamentals and High-Level Design", "link": "https://github.com/donnemartin/system-design-primer", "subject": "SESD"},
+  {"topic": "Introduction to Machine Learning with Python", "link": "https://www.coursera.org/learn/machine-learning", "subject": "AIML"},
+  {"topic": "Neural Networks and Deep Learning Specialization", "link": "https://www.deeplearning.ai/courses/neural-networks-deep-learning/", "subject": "AIML"},
+  {"topic": "Full Stack Development with MERN Stack", "link": "https://fullstackopen.com/en/", "subject": "FSD"},
+  {"topic": "Responsive Web Design and Frontend Frameworks", "link": "https://www.freecodecamp.org/learn/2022/responsive-web-design/", "subject": "FSD"},
+  {"topic": "Data Visualization and Storytelling with Data", "link": "https://www.tableau.com/learn/articles/data-visualization", "subject": "DVA"},
+  {"topic": "Advanced Exploratory Data Analysis (EDA)", "link": "https://towardsdatascience.com/exploratory-data-analysis-eda-python-87178e35b141", "subject": "DVA"},
+  {"topic": "Probability and Statistics for Computer Science", "link": "https://www.edx.org/course/probability-and-statistics-in-data-science-using-python", "subject": "Maths"},
+  {"topic": "Agile Development and Scrum Framework", "link": "https://www.scrum.org/resources/what-is-scrum", "subject": "SESD"},
+  {"topic": "Natural Language Processing (NLP) Masterclass", "link": "https://web.stanford.edu/class/cs224n/", "subject": "AIML"}
+]
