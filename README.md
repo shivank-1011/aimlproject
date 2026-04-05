@@ -1,10 +1,12 @@
-# Student Risk Analysis System
+# Multi-Agent Student Diagnostic & Study Planning System
 
 ## Problem Understanding
 
-Educational institutions often struggle to identify students who are at risk of poor placement performance early enough to intervene effectively. This system aims to solve this problem by analyzing historical academic data and engagement metrics to predict placement risk. By categorizing students into 'At-risk', 'Average', and 'High-performing' groups, the system enables targeted interventions and provides personalized study recommendations to improve student outcomes.
+Educational institutions often struggle to identify students at risk of poor academic or placement performance early enough to intervene effectively. This system provides an end-to-end AI-driven solution that not only predicts student risk using machine learning but also generates personalized, deep-diagnostic study plans using a multi-agent workflow. By categorizing students into 'At-risk', 'Average', and 'High-performing', and providing RAG-driven resources, the system enables meaningful, data-driven interventions to improve student outcomes.
 
 ## System Architecture
+
+The following diagram illustrates the complete system architecture, integrating the ML prediction pipeline with the AI-driven agentic diagnostics.
 
 ```mermaid
 graph TD
@@ -12,16 +14,56 @@ graph TD
     UI --> Validator[Data Validation]
     Validator -->|Valid| Preprocessor[Preprocessing Pipeline]
     Validator -->|Invalid| Error[Error Message]
+    
+    subgraph "Prediction Engine"
     Preprocessor --> Scaler[Standard Scaler]
     Scaler --> Model[Logistic Regression Model]
     Model --> Prob[Risk Probability]
     Prob --> Logic[Risk Categorization]
-    Logic --> Engine[Recommendation Engine]
-    Engine --> Dashboard[Interactive Dashboard]
-    Engine --> Report[Downloadable Report]
-    Dashboard --> User
-    Report --> User
+    end
+    
+    subgraph "AI Agentic Dashboard"
+    Logic --> Dash[Interactive Visualizations]
+    Logic --> Diagnostician[Student Diagnosis Engine]
+    Diagnostician --> Agent[LangGraph AI Agent]
+    Agent --> RAG[RAG Resource Retrieval]
+    RAG --> LLM[Groq Llama-3 Analysis]
+    LLM --> Report[Personalized Study Plan]
+    Report --> PDF[PDF Generator]
+    end
+    
+    Dash --> User
+    PDF --> User
 ```
+
+## AI Agentic Workflow
+
+The system uses **LangGraph** to manage a multi-step agentic process for students who require additional support (At-risk and Average categories).
+
+```mermaid
+graph TD
+    Start([Start Agent]) --> Diagnose[1. Diagnose Weak Areas]
+    Diagnose --> Plan[2. Draft Study Strategy]
+    Plan --> Retrieve[3. Retrieve RAG Resources]
+    Retrieve --> Report[4. Generate Full Analysis]
+    Report --> PDF[5. Export PDF Plan]
+    PDF --> End([End Agent])
+    
+    subgraph "Agent Tools"
+    Diagnose -.-> Tool1[Subject Score Analytics]
+    Retrieve -.-> Tool2[FAISS Vector DB]
+    Report -.-> Tool3[Groq Llama-3.3-70B]
+    end
+```
+
+## Key Features
+
+1.  **AI Study Planner (Powered by Groq)**: Integrated deep analysis using Llama-3.3-70B models to generate high-quality academic counseling.
+2.  **Agentic Workflow (LangGraph)**: A persistent, multi-node state machine that manages the diagnosis, strategy, and resource retrieval process.
+3.  **RAG System (Retrieval-Augmented Generation)**: Uses a FAISS vector database to retrieve the most relevant YouTube videos and documentation according to specific student weaknesses.
+4.  **Data-Driven Diagnostics**: Identifies 'Critical Weak Areas' and 'Areas for Improvement' through a dedicated algorithmic engine.
+5.  **Professional PDF Reports**: Automated generation of download-ready study plans including milestones, weekly goals, and curated resource links.
+6.  **Interactive Dashboards**: Dynamic Plotly visualizations for risk distribution and student-wise performance drill-downs.
 
 ## ML Pipeline
 
@@ -42,7 +84,7 @@ graph LR
 
 ## Workflow Image
 
-<img width="1276" height="788" alt="Screenshot 2026-02-06 at 1 51 49 PM" src="https://github.com/user-attachments/assets/6e785fed-a134-41cf-a3d6-973f87276ab0" />
+![System Workflow](workflow_diagram.png)
 
 ## Input-Output Specification
 
@@ -51,23 +93,35 @@ graph LR
 A CSV file containing student academic records.
 **Required Columns:**
 
-- `URN`: Unique Reference Number (used to extract Section).
-- `Maths`, `SESD`, `AIML`, `FSD`, `DVA`: Subject scores (Float/Int).
-- `topic_wise_accuracy`: JSON string representing accuracy per topic (Optional).
-- `time_spent_per_topic`: JSON string representing time spent per topic (Optional).
+-   `student_name`: Name of the student (Optional for reports).
+-   `URN`: Unique Reference Number (used to extract Section).
+-   `Maths`, `SESD`, `AIML`, `FSD`, `DVA`: Subject scores (Float/Int).
+-   `topic_wise_accuracy`: JSON representing accuracy per topic.
+-   `time_spent_per_topic`: JSON representing time spent per topic.
 
 ### Output
 
 1.  **Risk Category**:
-    - **At-risk**: Probability < 0.40
-    - **Average**: 0.40 <= Probability < 0.80
-    - **High-performing**: Probability >= 0.80
-2.  **Risk Score**: A probability score indicating the likelihood of successful placement.
-3.  **Recommendations**: Actionable study advice based on the risk category.
+    -   **At-risk**: Probability < 0.40
+    -   **Average**: 0.40 <= Probability < 0.80
+    -   **High-performing**: Probability >= 0.80
+2.  **AI Diagnosis**: Comprehensive report on strengths and specific gaps.
+3.  **Curated Resources**: Direct links to study materials for weak areas discovered via RAG.
+4.  **Study Plan PDF**: A printable, personalized 4-week learning roadmap.
+
+## Tech Stack
+
+-   **Frontend**: Streamlit
+-   **AI Engine**: Groq (Llama-3.3-70B-Versatile)
+-   **Agentic Framework**: LangGraph
+-   **Vector Database**: FAISS (RAG System)
+-   **ML Model**: Scikit-Learn (Logistic Regression)
+-   **PDF Generation**: FPDF2
+-   **Visualizations**: Plotly
 
 ## Model Limitations
 
-1.  **Synthetic Target**: The model is trained on a synthetic target variable derived from the average of subject scores (>75% considered "Placed"). This means the model predicts "High Academic Performance" rather than actual placement success.
-2.  **Linearity Assumption**: The Logistic Regression model assumes a linear relationship between features and the log-odds of the outcome, which may not capture complex non-linear patterns.
-3.  **Data Imputation**: Missing values are imputed with the mean, which can reduce the variance of the dataset and potentially bias the model.
-4.  **Limited Context**: The current model relies heavily on academic scores and does not account for external factors like soft skills, project work, or extracurricular activities.
+1.  **Synthetic Target**: The model is trained on a synthetic target variable derived from average scores (>75% considered "Placed").
+2.  **Linearity Assumption**: Logistic Regression assumes linear log-odds, which may miss complex non-linear patterns.
+3.  **Data Context**: Currently relies on academic scores; does not account for interview skills or extracurricular projects.
+
