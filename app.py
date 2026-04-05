@@ -7,6 +7,7 @@ import re
 import os
 import plotly.express as px
 from sklearn.preprocessing import StandardScaler
+from groq_analysis import GroqAnalyzer
 
 # config
 MODEL_PATH = 'model/model.pkl'
@@ -180,7 +181,14 @@ def main():
     if not model or not scaler:
         st.stop()
 
+    # Clear session state if a new file is uploaded
     if uploaded_file is not None:
+        if 'uploaded_file_name' not in st.session_state or st.session_state.uploaded_file_name != uploaded_file.name:
+            for key in ['results_df', 'probs']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.session_state.uploaded_file_name = uploaded_file.name
+
         try:
             # Check for empty file
             if uploaded_file.size == 0:
@@ -202,63 +210,121 @@ def main():
                 st.error(f"Validation Error: {error_msg}")
                 return
 
-            if st.button("Analyze Students"):
-                with st.spinner("Processing data and generating predictions..."):
-                    try:
-                        X_processed = preprocess_input(raw_df, scaler)
-                        
-                        if hasattr(model, "predict_proba"):
-                            probs = model.predict_proba(X_processed)[:, 1]
-                        else:
-                            probs = model.predict(X_processed)
-                        
-                        categories = []
-                        for p in probs:
-                            if p < 0.40:
-                                categories.append('At-risk')
-                            elif p < 0.80:
-                                categories.append('Average')
+            # Perform or retrieve analysis
+            if st.button("Analyze Students") or 'results_df' in st.session_state:
+                if 'results_df' not in st.session_state:
+                    with st.spinner("Processing data and generating predictions..."):
+                        try:
+                            X_processed = preprocess_input(raw_df, scaler)
+                            
+                            if hasattr(model, "predict_proba"):
+                                probs = model.predict_proba(X_processed)[:, 1]
                             else:
-                                categories.append('High-performing')
-                        
-                        # Results DataFrame
-                        results_df = raw_df.copy()
-                        results_df['Risk Score'] = np.round(probs, 4)
-                        results_df['Risk Category'] = categories
-                        results_df['Recommendations'] = [get_recommendations(c) for c in categories]
-                        
-                        # DASHBOARD
-                        st.divider()
-                        col1, col2 = st.columns([2, 1])
-                        
-                        with col1:
-                            st.subheader(" Detailed Analysis")
-                            disp_cols = ['Risk Category', 'Risk Score', 'Recommendations']
-                            if 'student_name' in results_df.columns:
-                                disp_cols.insert(0, 'student_name')
-                            st.dataframe(results_df[disp_cols])
-                        
-                        with col2:
-                            st.subheader("Risk Distribution")
-                            count_df = results_df['Risk Category'].value_counts().reset_index()
-                            count_df.columns = ['Category', 'Count']
-                            fig = px.pie(count_df, values='Count', names='Category', color='Category',
-                                         color_discrete_map={'At-risk':'red', 'Average':'orange', 'High-performing':'green'})
-                            st.plotly_chart(fig, use_container_width=True)
+                                probs = model.predict(X_processed)
+                            
+                            categories = []
+                            for p in probs:
+                                if p < 0.40:
+                                    categories.append('At-risk')
+                                elif p < 0.80:
+                                    categories.append('Average')
+                                else:
+                                    categories.append('High-performing')
+                            
+                            # Results DataFrame
+                            res_df = raw_df.copy()
+                            res_df['Risk Score'] = np.round(probs, 4)
+                            res_df['Risk Category'] = categories
+                            res_df['Recommendations'] = [get_recommendations(c) for c in categories]
+                            
+                            # Store in session state
+                            st.session_state.results_df = res_df
+                            st.session_state.probs = probs
+                        except Exception as e:
+                            st.error(f"An error occurred during analysis: {str(e)}")
+                            st.exception(e)
+                            return
 
-                        # Download
-                        csv = results_df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label="Download Full Report",
-                            data=csv,
-                            file_name="student_risk_report.csv",
-                            mime="text/csv",
-                        )
+                # Get results from state
+                results_df = st.session_state.results_df
+                
+                # DASHBOARD DISPLAY
+                st.divider()
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.subheader(" Detailed Analysis")
+                    disp_cols = ['Risk Category', 'Risk Score', 'Recommendations']
+                    if 'student_name' in results_df.columns:
+                        disp_cols.insert(0, 'student_name')
+                    st.dataframe(results_df[disp_cols])
+                
+                with col2:
+                    st.subheader("Risk Distribution")
+                    count_df = results_df['Risk Category'].value_counts().reset_index()
+                    count_df.columns = ['Category', 'Count']
+                    fig = px.pie(count_df, values='Count', names='Category', color='Category',
+                                    color_discrete_map={'At-risk':'red', 'Average':'orange', 'High-performing':'green'})
+                    st.plotly_chart(fig, use_container_width=True)
+
+                # Download button for CSV
+                csv = results_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Full CSV Report",
+                    data=csv,
+                    file_name="student_risk_report.csv",
+                    mime="text/csv",
+                )
+
+                # AI ANALYSIS SECTION
+                st.divider()
+                st.subheader("🤖 AI Study Planner (Powered by Groq)")
+                
+                # Filter for priority students (at-risk or average)
+                priority_students = results_df[results_df['Risk Category'].isin(['At-risk', 'Average'])]
+                
+                if not priority_students.empty:
+                    st.info("Generating a detailed AI diagnosis and study plan for students who need more support.")
+                    
+                    col_a, col_b = st.columns([1, 1])
+                    
+                    with col_a:
+                        student_names = priority_students['student_name'].tolist() if 'student_name' in priority_students.columns else priority_students.index.tolist()
+                        selected_student = st.selectbox("Select a student", options=student_names)
+                    
+                    with col_b:
+                        current_goal = st.text_input("Goal", "Improve core subjects and prepare for placement rounds.")
                         
-                        st.success("Analysis Complete!")
-                    except Exception as e:
-                        st.error(f"An error occurred during analysis: {str(e)}")
-                        st.exception(e)
+                    if st.button("Generate AI Diagnosis"):
+                        if selected_student:
+                            with st.spinner(f"AI is analyzing {selected_student}'s performance..."):
+                                try:
+                                    analyzer = GroqAnalyzer()
+                                    
+                                    # Get student data row
+                                    if 'student_name' in priority_students.columns:
+                                        row = priority_students[priority_students['student_name'] == selected_student].iloc[0]
+                                    else:
+                                        row = priority_students.loc[selected_student]
+                                    
+                                    perf_dict = row.to_dict()
+                                    report = analyzer.generate_study_plan(perf_dict, current_goal)
+                                    
+                                    st.markdown("---")
+                                    st.markdown(report)
+                                    
+                                    st.download_button(
+                                        label="Download AI Report (Markdown)",
+                                        data=report,
+                                        file_name=f"AI_Report_{selected_student}.md",
+                                        mime="text/markdown",
+                                    )
+                                except Exception as e:
+                                    st.error(f"Groq API Error: {e}")
+                        else:
+                            st.warning("Please select a student.")
+                else:
+                    st.success("All students are currently in the 'High-performing' category. Well done!")
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
