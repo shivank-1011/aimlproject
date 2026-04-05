@@ -324,43 +324,63 @@ def main():
                         if not diagnosis_data["critical"] and not diagnosis_data["improvement"]:
                             st.success(f"Excellent performance across all subjects for {selected_student}!")
 
+                    # --- AGENT ANALYTICS (MEMORY PERSISTENCE) ---
+                    if "agent_report" not in st.session_state:
+                        st.session_state.agent_report = None
+                    if "report_for_student" not in st.session_state:
+                        st.session_state.report_for_student = None
+
                     if st.button("Generate AI Diagnosis"):
                         if selected_student:
-                            with st.spinner(f"Agent is executing workflow for {selected_student}..."):
+                            with st.spinner(f"Agent executing workflow for {selected_student}..."):
                                 try:
-                                    # Initialize and run the LangGraph Agent pipeline
+                                    # Run Agent Task
                                     agent = StudentAnalysisAgent()
                                     report = agent.run(perf_dict_raw, current_goal)
                                     
-                                    st.markdown("---")
-                                    st.markdown(report)
+                                    # Store in Memory
+                                    st.session_state.agent_report = report
+                                    st.session_state.report_for_student = selected_student
                                     
-                                    # DOWNLOAD OPTION 1: MARKDOWN
-                                    st.download_button(
-                                        label="Download Agent Report (Markdown)",
-                                        data=report,
-                                        file_name=f"Agent_Report_{selected_student}.md",
-                                        mime="text/markdown",
-                                    )
-                                    
-                                    # DOWNLOAD OPTION 2: PDF
-                                    try:
-                                        # Ensure report is a string
-                                        pdf_bytes = generate_study_plan_pdf(selected_student, report)
-                                        st.download_button(
-                                            label="Download Study Plan (PDF)",
-                                            data=pdf_bytes,
-                                            file_name=f"StudyPlan_{selected_student}.pdf",
-                                            mime="application/pdf",
-                                        )
-                                    except Exception as pdf_err:
-                                        st.warning(f"Note: PDF generation skipped due to non-standard characters. Download Markdown instead.")
-                                        st.info(f"(Details: {pdf_err})")
-                                        
                                 except Exception as e:
                                     st.error(f"Agent Workflow Error: {e}")
                         else:
                             st.warning("Please select a student.")
+
+                    # Display the report if it matches the current selection
+                    if st.session_state.agent_report and st.session_state.report_for_student == selected_student:
+                        report = st.session_state.agent_report
+                        st.markdown("---")
+                        st.subheader(f"🎓 Personalized Study Plan for {selected_student}")
+                        
+                        # Show full report
+                        st.markdown(report)
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            # DOWNLOAD OPTION 1: MARKDOWN
+                            st.download_button(
+                                label="📄 Download Agent Report (MD)",
+                                data=report,
+                                file_name=f"Agent_Report_{selected_student}.md",
+                                mime="text/markdown",
+                                width="stretch"
+                            )
+                        
+                        with col2:
+                            # DOWNLOAD OPTION 2: PDF
+                            try:
+                                pdf_bytes = generate_study_plan_pdf(selected_student, report)
+                                st.download_button(
+                                    label="📕 Download Study Plan (PDF)",
+                                    data=pdf_bytes,
+                                    file_name=f"StudyPlan_{selected_student}.pdf",
+                                    mime="application/pdf",
+                                    width="stretch"
+                                )
+                            except Exception as pdf_err:
+                                st.warning(f"Note: PDF generation skipped.")
+
                 else:
                     st.success("All students are currently in the 'High-performing' category. Well done!")
 
