@@ -75,20 +75,35 @@ class StudentAnalysisAgent:
         resources_text = state['resources_text']
         
         prompt = f"""
-        Generate a comprehensive student analysis report based on these details:
-        STUENT DATA: {student_data}
+        Generate a PREMIUM student analysis report with the following styling:
+        STUDENT DATA: {student_data}
         WEAK AREAS: {weak_areas_text}
         GOAL: {student_goal}
         REAL RESOURCES: {resources_text}
         
-        **STRICT OUTPUT FORMAT:**
-        1. Learning Diagnosis (Analysis of strengths and gaps)
-        2. Study Plan (Logical progression to solve gaps)
-        3. Weekly Goals (4 specific, measurable weekly targets)
-        4. Resources (The specific URLs provided above)
-        5. Next Steps (Immediate actions for the student)
+        **STYLING RULES:** 
+        - Use bold headers (Section Title). 
+        - Use blockquotes (`>`) for the Learning Diagnosis section.
+        - Use bullet points for all lists. 
+        - Ensure the Resources section is grouped by subject in a very clean way.
         
-        Ensure your response has only these 5 numbered sections.
+        **STRICT OUTPUT FORMAT:**
+        ### 1. Learning Diagnosis
+        > (Your analysis of strengths and gaps)
+
+        ### 2. Study Plan
+        (Logical progression to solve gaps, using bold text for key milestones)
+
+        ### 3. Weekly Goals
+        - (4 specific, measurable weekly targets)
+
+        ### 4. Curated Resources
+        (The specific URLs provided above, grouped beautifully)
+
+        ### 5. Next Steps
+        - (Immediate actions for the student)
+        
+        Ensure your response has only these 5 numbered sections. Do not include any intro or outro text.
         """
         
         # Use our existing Groq tool but with the specific agent prompt

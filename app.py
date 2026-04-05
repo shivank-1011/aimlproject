@@ -351,7 +351,7 @@ def main():
                     if st.session_state.agent_report and st.session_state.report_for_student == selected_student:
                         report = st.session_state.agent_report
                         st.markdown("---")
-                        st.subheader(f"🎓 Personalized Study Plan for {selected_student}")
+                        st.subheader(f"Personalized Study Plan for {selected_student}")
                         
                         # Show full report
                         st.markdown(report)
@@ -360,7 +360,7 @@ def main():
                         with col1:
                             # DOWNLOAD OPTION 1: MARKDOWN
                             st.download_button(
-                                label="📄 Download Agent Report (MD)",
+                                label="Download Agent Report (MD)",
                                 data=report,
                                 file_name=f"Agent_Report_{selected_student}.md",
                                 mime="text/markdown",
@@ -372,7 +372,7 @@ def main():
                             try:
                                 pdf_bytes = generate_study_plan_pdf(selected_student, report)
                                 st.download_button(
-                                    label="📕 Download Study Plan (PDF)",
+                                    label="Download Study Plan (PDF)",
                                     data=pdf_bytes,
                                     file_name=f"StudyPlan_{selected_student}.pdf",
                                     mime="application/pdf",
