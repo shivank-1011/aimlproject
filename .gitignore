@@ -3,6 +3,5 @@ __pycache__/
 .streamlit/
 *.pyc
 .DS_Store
-model/*.pkl
 data/*.csv
 student_diagnosis_report.md

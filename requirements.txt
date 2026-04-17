@@ -9,4 +9,3 @@ faiss-cpu
 sentence-transformers
 langgraph
 fpdf
-torchvision

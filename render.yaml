@@ -2,8 +2,10 @@ services:
   - type: web
     name: student-risk-analysis
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app.py
+    buildCommand: pip install -r requirements.txt && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.18
+        value: 3.11.0
+      - key: GROQ_API_KEY
+        sync: false
